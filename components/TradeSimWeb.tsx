@@ -1,5 +1,6 @@
 "use client";
-import React, { useState } from "react";
+
+import React, { useEffect, useRef, useState } from "react";
 import { Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -11,13 +12,14 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Button } from "../components/ui/button";
+import { Label } from "../components/ui/label";
 
 ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Title, Tooltip, Legend);
 
+// 전략 파라미터
 const RSI_PERIOD = 14;
 const SMA_SHORT_PERIOD = 5;
 const SMA_LONG_PERIOD = 20;
@@ -33,9 +35,44 @@ const BROKER_COMMISSION_RATE = 0.0023;
 const MAX_HOLD_TIME = 90;
 
 export default function TradeSimWeb() {
+  const [apiKey, setApiKey] = useState("");
+  const [symbol, setSymbol] = useState("TQQQ");
   const [prices, setPrices] = useState<number[]>([]);
   const [volumes, setVolumes] = useState<number[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
+  const socketRef = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    if (apiKey.trim() === "") return;
+
+    const ws = new WebSocket(`wss://ws.finnhub.io?token=${apiKey}`);
+    socketRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("✅ WebSocket 연결됨");
+      ws.send(JSON.stringify({ type: "subscribe", symbol }));
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "trade") {
+        const price = data.data[0]?.p;
+        const volume = data.data[0]?.v || 1;
+        if (price) {
+          setPrices((prev) => [...prev.slice(-99), price]);
+          setVolumes((prev) => [...prev.slice(-99), volume]);
+        }
+      }
+    };
+
+    ws.onerror = (err) => {
+      console.error("WebSocket 에러", err);
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [apiKey, symbol]);
 
   const calculate_rsi = (data: number[]) => {
     if (data.length < RSI_PERIOD + 1) return null;
@@ -130,11 +167,17 @@ export default function TradeSimWeb() {
     <div className="p-4 space-y-6 max-w-3xl mx-auto">
       <Card>
         <CardContent className="space-y-2 p-4">
-          <Label>가격 시퀀스 (쉼표 구분)</Label>
-          <Input value={prices.join(",")} onChange={e => setPrices(e.target.value.split(",").map(Number))} />
-          <Label>거래량 시퀀스 (선택)</Label>
-          <Input value={volumes.join(",")} onChange={e => setVolumes(e.target.value.split(",").map(Number))} />
-          <Button onClick={simulate}>매매 전략 실행</Button>
+          <Label>🔐 API Key (finnhub.io)</Label>
+          <Input value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="d0xxxxyyyzzz" />
+          <Label>📈 관심 종목 (예: TQQQ, TSLA)</Label>
+          <Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-2 p-4">
+          <Button onClick={simulate}>📊 시뮬레이션 실행</Button>
+          <p>실시간 가격 수신 중: {prices.at(-1)?.toFixed(2)}</p>
         </CardContent>
       </Card>
 
@@ -156,6 +199,37 @@ export default function TradeSimWeb() {
           }} />
         </CardContent>
       </Card>
+<Card>
+  <CardContent className="space-y-2 p-4">
+    <h2 className="text-lg font-semibold">🧾 매매 로그</h2>
+    <div className="overflow-auto">
+      <table className="w-full text-sm text-left">
+        <thead>
+          <tr className="border-b">
+            <th className="py-1 pr-4">시간</th>
+            <th className="py-1 pr-4">타입</th>
+            <th className="py-1 pr-4">가격</th>
+            <th className="py-1 pr-4">수익률</th>
+            <th className="py-1 pr-4">비고</th>
+          </tr>
+        </thead>
+        <tbody>
+          {logs.map((log, i) => (
+            <tr key={i} className="border-b">
+              <td className="py-1 pr-4">{log.time}</td>
+              <td className="py-1 pr-4">{log.type}</td>
+              <td className="py-1 pr-4">{log.price.toFixed(2)}</td>
+              <td className="py-1 pr-4">
+                {log.profit !== undefined ? `${log.profit.toFixed(2)}%` : "-"}
+              </td>
+              <td className="py-1 pr-4">{log.reason || "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </CardContent>
+</Card>
     </div>
   );
 }
