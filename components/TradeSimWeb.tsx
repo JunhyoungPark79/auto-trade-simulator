@@ -1,3 +1,4 @@
+"use client";
 import React, { useState } from "react";
 import { Line } from "react-chartjs-2";
 import {
@@ -29,6 +30,7 @@ const TAKE_PROFIT_PCT = 0.7;
 const STOP_LOSS_PCT = -0.5;
 const CAPITAL_GAIN_TAX_RATE = 0.22;
 const BROKER_COMMISSION_RATE = 0.0023;
+const MAX_HOLD_TIME = 90;
 
 export default function TradeSimWeb() {
   const [prices, setPrices] = useState<number[]>([]);
