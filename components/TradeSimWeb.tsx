@@ -40,16 +40,18 @@ export default function TradeSimWeb() {
   const [prices, setPrices] = useState<number[]>([]);
   const [volumes, setVolumes] = useState<number[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
+  const [socketStatus, setSocketStatus] = useState("🔌 WebSocket 연결 대기 중...");
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
     if (apiKey.trim() === "") return;
 
+    setSocketStatus("🔌 WebSocket 연결 중...");
     const ws = new WebSocket(`wss://ws.finnhub.io?token=${apiKey}`);
     socketRef.current = ws;
 
     ws.onopen = () => {
-      console.log("✅ WebSocket 연결됨");
+      setSocketStatus("✅ WebSocket 연결됨");
       ws.send(JSON.stringify({ type: "subscribe", symbol }));
     };
 
@@ -67,6 +69,11 @@ export default function TradeSimWeb() {
 
     ws.onerror = (err) => {
       console.error("WebSocket 에러", err);
+      setSocketStatus("🚨 WebSocket 에러 발생");
+    };
+
+    ws.onclose = () => {
+      setSocketStatus("❌ WebSocket 연결 종료됨");
     };
 
     return () => {
@@ -177,7 +184,8 @@ export default function TradeSimWeb() {
       <Card>
         <CardContent className="space-y-2 p-4">
           <Button onClick={simulate}>📊 시뮬레이션 실행</Button>
-          <p>실시간 가격 수신 중: {prices.at(-1)?.toFixed(2)}</p>
+          <p>📶 상태: {socketStatus}</p>
+          <p>💲 실시간 가격: {prices.at(-1)?.toFixed(2)}</p>
         </CardContent>
       </Card>
 
@@ -199,37 +207,36 @@ export default function TradeSimWeb() {
           }} />
         </CardContent>
       </Card>
-<Card>
-  <CardContent className="space-y-2 p-4">
-    <h2 className="text-lg font-semibold">🧾 매매 로그</h2>
-    <div className="overflow-auto">
-      <table className="w-full text-sm text-left">
-        <thead>
-          <tr className="border-b">
-            <th className="py-1 pr-4">시간</th>
-            <th className="py-1 pr-4">타입</th>
-            <th className="py-1 pr-4">가격</th>
-            <th className="py-1 pr-4">수익률</th>
-            <th className="py-1 pr-4">비고</th>
-          </tr>
-        </thead>
-        <tbody>
-          {logs.map((log, i) => (
-            <tr key={i} className="border-b">
-              <td className="py-1 pr-4">{log.time}</td>
-              <td className="py-1 pr-4">{log.type}</td>
-              <td className="py-1 pr-4">{log.price.toFixed(2)}</td>
-              <td className="py-1 pr-4">
-                {log.profit !== undefined ? `${log.profit.toFixed(2)}%` : "-"}
-              </td>
-              <td className="py-1 pr-4">{log.reason || "-"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  </CardContent>
-</Card>
+
+      <Card>
+        <CardContent className="space-y-2 p-4">
+          <h2 className="text-lg font-semibold">🧾 매매 로그</h2>
+          <div className="overflow-auto">
+            <table className="w-full text-sm text-left">
+              <thead>
+                <tr className="border-b">
+                  <th className="py-1 pr-4">시간</th>
+                  <th className="py-1 pr-4">타입</th>
+                  <th className="py-1 pr-4">가격</th>
+                  <th className="py-1 pr-4">수익률</th>
+                  <th className="py-1 pr-4">비고</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((log, i) => (
+                  <tr key={i} className="border-b">
+                    <td className="py-1 pr-4">{log.time}</td>
+                    <td className="py-1 pr-4">{log.type}</td>
+                    <td className="py-1 pr-4">{log.price.toFixed(2)}</td>
+                    <td className="py-1 pr-4">{log.profit !== undefined ? `${log.profit.toFixed(2)}%` : "-"}</td>
+                    <td className="py-1 pr-4">{log.reason || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
