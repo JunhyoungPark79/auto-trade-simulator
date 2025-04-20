@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { Line } from "react-chartjs-2";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   LineElement,
@@ -11,10 +11,10 @@ import {
   Title,
   Tooltip,
   Legend,
-} from "chart.js";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from 'chart.js';
+import { Card, CardContent } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 
 // 차트 컴포넌트 등록
 ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Title, Tooltip, Legend);
@@ -40,10 +40,10 @@ function useFinnhubWS(
   symbol: string,
   onTrade: (price: number, volume: number) => void
 ) {
-  const [status, setStatus] = useState("🔌 대기 중...");
+  const [status, setStatus] = useState('🔌 대기 중...');
   const wsRef = useRef<WebSocket | null>(null);
   const retryCount = useRef(0);
-  const timeoutRef = useRef<number>();
+  const timeoutRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!apiKey) return;
@@ -51,32 +51,32 @@ function useFinnhubWS(
 
     const connect = () => {
       if (!mounted) return;
-      setStatus("🔌 연결 시도 중...");
+      setStatus('🔌 연결 시도 중...');
       const ws = new WebSocket(`wss://ws.finnhub.io?token=${apiKey}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        setStatus("✅ 연결됨");
+        setStatus('✅ 연결됨');
         retryCount.current = 0;
-        ws.send(JSON.stringify({ type: "subscribe", symbol }));
+        ws.send(JSON.stringify({ type: 'subscribe', symbol }));
       };
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.type === "trade" && data.data.length) {
+        if (data.type === 'trade' && data.data.length) {
           const { p: price, v: volume } = data.data[0];
           onTrade(price, volume || 1);
         }
       };
 
       ws.onerror = (err) => {
-        console.error("WebSocket 에러", err);
-        setStatus("🚨 에러 발생");
+        console.error('WebSocket 에러', err);
+        setStatus('🚨 에러 발생');
         ws.close();
       };
 
       ws.onclose = () => {
-        setStatus("❌ 연결 종료");
+        setStatus('❌ 연결 종료');
         if (!mounted) return;
         const delay = Math.min(30000, 1000 * 2 ** retryCount.current);
         timeoutRef.current = window.setTimeout(() => {
@@ -152,8 +152,8 @@ function calculate_net_profit(entry: number, exit: number) {
 
 export default function TradeSimWeb() {
   // ===== 상태 변수 =====
-  const [apiKey, setApiKey] = useState("");
-  const [symbol, setSymbol] = useState("TQQQ");
+  const [apiKey, setApiKey] = useState('');
+  const [symbol, setSymbol] = useState('TQQQ');
   const [prices, setPrices] = useState<number[]>([]);
   const [volumes, setVolumes] = useState<number[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
@@ -181,20 +181,20 @@ export default function TradeSimWeb() {
       const vwap = calculate_vwap(prices.slice(0, i + 1), volumes.slice(0, i + 1));
       const [macd, signal] = calculate_macd(prices.slice(0, i + 1));
       const reasons: string[] = [];
-      if (rsi && rsi < RSI_BUY_THRESHOLD) reasons.push("RSI<30");
-      if (VWAP_CONDITION && vwap && p > vwap) reasons.push("VWAP 돌파");
-      if (sma5 && sma20 && sma5 > sma20) reasons.push("골든크로스");
-      if (macd && signal && macd > signal) reasons.push("MACD 상향 돌파");
+      if (rsi && rsi < RSI_BUY_THRESHOLD) reasons.push('RSI<30');
+      if (VWAP_CONDITION && vwap && p > vwap) reasons.push('VWAP 돌파');
+      if (sma5 && sma20 && sma5 > sma20) reasons.push('골든크로스');
+      if (macd && signal && macd > signal) reasons.push('MACD 상향 돌파');
       if (!holding && reasons.length === 4) {
         holding = true;
         entry = p;
         entryIdx = i;
-        newLogs.push({ time: i, type: "BUY", price: p, reason: reasons.join(", ") });
+        newLogs.push({ time: i, type: 'BUY', price: p, reason: reasons.join(', ') });
       } else if (holding) {
         const net = calculate_net_profit(entry, p);
         if (net >= TAKE_PROFIT_PCT || net <= STOP_LOSS_PCT || i - entryIdx >= MAX_HOLD_TIME) {
           holding = false;
-          newLogs.push({ time: i, type: "SELL", price: p, profit: net });
+          newLogs.push({ time: i, type: 'SELL', price: p, profit: net });
         }
       }
     }
@@ -209,10 +209,16 @@ export default function TradeSimWeb() {
   }, [apiKey, prices, intervalSec, simulate]);
 
   // 누적 수익률 메모이제이션
-  const cumulative = useMemo(() => logs.filter((d) => d.type === "SELL").reduce((acc, cur, i) => {
-    acc.push((acc[i - 1] || 0) + (cur.profit || 0));
-    return acc;
-  }, [] as number[]), [logs]);
+  const cumulative = useMemo(
+    () =>
+      logs
+        .filter((d) => d.type === 'SELL')
+        .reduce((acc, cur, i) => {
+          acc.push((acc[i - 1] || 0) + (cur.profit || 0));
+          return acc;
+        }, [] as number[]),
+    [logs]
+  );
 
   // ===== 렌더링 =====
   return (
@@ -221,11 +227,23 @@ export default function TradeSimWeb() {
       <Card>
         <CardContent className="space-y-2 p-4">
           <Label>🔐 API Key (finnhub.io)</Label>
-          <Input value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="d0xxxxyyyzzz" />
+          <Input
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="d0xxxxyyyzzz"
+          />
           <Label>📈 종목 심볼</Label>
-          <Input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} />
+          <Input
+            value={symbol}
+            onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+          />
           <Label>⏱️ 시뮬레이션 주기 (초)</Label>
-          <Input type="number" min={1} value={intervalSec} onChange={(e) => setIntervalSec(Math.max(1, parseInt(e.target.value, 10)))} />
+          <Input
+            type="number"
+            min={1}
+            value={intervalSec}
+            onChange={(e) => setIntervalSec(Math.max(1, parseInt(e.target.value, 10)))}
+          />
         </CardContent>
       </Card>
 
@@ -233,7 +251,7 @@ export default function TradeSimWeb() {
       <Card>
         <CardContent className="space-y-2 p-4">
           <p>📶 WS 상태: {socketStatus}</p>
-          <p>💲 실시간 가격: {prices.at(-1)?.toFixed(2) ?? "-"}</p>
+          <p>💲 실시간 가격: {prices.at(-1)?.toFixed(2) ?? '-'}</p>
         </CardContent>
       </Card>
 
@@ -241,7 +259,14 @@ export default function TradeSimWeb() {
       <Card>
         <CardContent className="space-y-4 p-4">
           <h2 className="text-lg font-semibold">📈 누적 수익률</h2>
-          <Line data={{ labels: cumulative.map((_, i) => i + 1), datasets: [{ label: "% 누적 수익률", data: cumulative, fill: true }] }} />
+          <Line
+            data={{
+              labels: cumulative.map((_: number, i: number) => i + 1),
+              datasets: [
+                { label: '% 누적 수익률', data: cumulative, fill: true },
+              ],
+            }}
+          />
         </CardContent>
       </Card>
 
@@ -251,7 +276,15 @@ export default function TradeSimWeb() {
           <h2 className="text-lg font-semibold">🧾 매매 로그</h2>
           <div className="overflow-auto max-h-64">
             <table className="w-full text-sm text-left">
-              <thead><tr className="border-b"><th>시간</th><th>타입</th><th>가격</th><th>수익률</th><th>비고</th></tr></thead>
+              <thead>
+                <tr className="border-b">
+                  <th>시간</th>
+                  <th>타입</th>
+                  <th>가격</th>
+                  <th>수익률</th>
+                  <th>비고</th>
+                </tr>
+              </thead>
               <tbody>
                 {logs.map((log, idx) => (
                   <tr key={idx} className="border-b">
@@ -259,7 +292,7 @@ export default function TradeSimWeb() {
                     <td className="py-1 pr-4">{log.type}</td>
                     <td className="py-1 pr-4">{log.price.toFixed(2)}</td>
                     <td className="py-1 pr-4">{log.profit?.toFixed(2)}%</td>
-                    <td className="py-1 pr-4">{log.reason || "-"}</td>
+                    <td className="py-1 pr-4">{log.reason || '-'}</td>
                   </tr>
                 ))}
               </tbody>
